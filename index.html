@@ -54,13 +54,13 @@ body{
 .backrow .btn{padding:8px 13px;font-size:12.5px;border-radius:11px}
 /* ---------- tabs ---------- */
 .tabs{
-  display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:4px;border-radius:16px;
+  display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:4px;border-radius:16px;
   background:rgba(255,255,255,.04);border:1px solid var(--line);position:sticky;top:6px;z-index:40;
   backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);margin-bottom:14px
 }
 .tab{
-  border:0;background:transparent;color:var(--dim);font-size:13px;font-weight:700;padding:9px 4px;
-  border-radius:12px;cursor:pointer;transition:.2s;font-family:inherit
+  border:0;background:transparent;color:var(--dim);font-size:12.5px;font-weight:700;padding:9px 2px;
+  border-radius:12px;cursor:pointer;transition:.2s;font-family:inherit;white-space:nowrap
 }
 .tab.on{background:linear-gradient(135deg,#ffd60a,#f5b700);color:#12224a;box-shadow:0 6px 18px rgba(255,214,10,.3)}
 /* ---------- cards ---------- */
@@ -249,6 +249,68 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:19px;heigh
 .unlock .em{font-size:26px}
 .unlock b{font-size:13.5px;display:block}
 .unlock span{font-size:11px;color:var(--dim)}
+/* ---------- 倒计时 / 日历 ---------- */
+.cd{position:relative;overflow:hidden}
+.cd-glow{position:absolute;left:-15%;right:-15%;top:-96px;height:210px;pointer-events:none;
+  background:radial-gradient(closest-side,rgba(255,214,10,.3),rgba(255,214,10,0) 72%)}
+.cd-top{position:relative;display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+.cd-lab{font-size:12px;color:var(--dim);font-weight:700;letter-spacing:.4px}
+.cd-line{display:flex;align-items:baseline;margin-top:2px}
+.cd-num{font-size:56px;font-weight:900;line-height:.94;letter-spacing:-2.5px;font-variant-numeric:tabular-nums;
+  background:linear-gradient(120deg,#ffd60a,#60a5fa);-webkit-background-clip:text;background-clip:text;color:transparent}
+.cd-unit{font-size:15px;font-weight:800;color:var(--dim);margin-left:7px}
+.cd-goal{text-align:right;line-height:1.6}
+.cd-goal b{display:block;font-size:14.5px;color:var(--yellow);font-weight:800}
+.cd-goal span{font-size:11px;color:var(--dim);font-weight:700}
+.cd-meta{position:relative;display:flex;align-items:center;justify-content:space-between;gap:10px;
+  font-size:11px;color:var(--dim);font-weight:700;margin-top:9px;font-variant-numeric:tabular-nums}
+.cd-chips{position:relative;display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:13px}
+.cd-chip{background:rgba(255,255,255,.055);border:1px solid var(--line);border-radius:14px;padding:9px 11px}
+.cd-chip b{font-size:17px;font-weight:900;font-variant-numeric:tabular-nums;color:#fff}
+.cd-chip b i{font-size:11px;font-style:normal;color:var(--dim);margin-left:2px;font-weight:700}
+.cd-chip span{display:block;font-size:10.5px;color:var(--dim);font-weight:700;margin-top:2px}
+.cal8{display:grid;grid-template-columns:repeat(11,1fr);gap:4px;margin-top:3px}
+.cal8 i{display:block;aspect-ratio:1/1;border-radius:4px;background:rgba(255,255,255,.05);transition:.15s}
+.cal8 i.miss{background:rgba(96,165,250,.16)}
+.cal8 i.fut{background:rgba(255,255,255,.022)}
+.cal8 i.d1{background:rgba(255,214,10,.34)}
+.cal8 i.d2{background:rgba(255,214,10,.6)}
+.cal8 i.d3{background:#ffd60a}
+.cal8 i.full{background:linear-gradient(135deg,#ffd60a,#3b82f6)}
+.cal8 i.tod{box-shadow:0 0 0 1.6px #60a5fa}
+.mon{margin-top:14px}
+.mon:first-child{margin-top:2px}
+.mon-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.mon-h b{font-size:12.5px;font-weight:800;color:#d6e4ff}
+.mon-h span{font-size:10.5px;color:var(--dim);font-weight:700;font-variant-numeric:tabular-nums}
+.mgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.mgrid .dw{font-size:10px;color:var(--dim);font-weight:700;text-align:center;padding-bottom:3px}
+.dcell{
+  position:relative;aspect-ratio:1/1;border-radius:10px;display:grid;place-items:center;
+  font-size:12px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--dim);
+  background:rgba(255,255,255,.05);border:1px solid transparent;font-family:inherit;padding:0;cursor:default
+}
+.dcell.blank{background:transparent;border:0}
+.dcell.out{background:rgba(255,255,255,.017);color:#465877}
+.dcell.fut{background:rgba(255,255,255,.026);color:#5b6d8a}
+.dcell.miss{background:rgba(96,165,250,.13);color:#8299bb}
+.dcell.d1{background:rgba(255,214,10,.24);color:#ffe98a;border-color:rgba(255,214,10,.26)}
+.dcell.d2{background:rgba(255,214,10,.48);color:#2a2000;border-color:rgba(255,214,10,.5)}
+.dcell.d3{background:#ffd60a;color:#2a2000;border-color:rgba(255,214,10,.72)}
+.dcell.full{background:linear-gradient(135deg,#ffd60a,#3b82f6);color:#08152f;border-color:rgba(255,255,255,.42)}
+.dcell.goal{background:linear-gradient(135deg,#3b82f6,#60a5fa);color:#fff;border-color:rgba(96,165,250,.7);font-size:15px}
+.dcell.today{box-shadow:0 0 0 1.6px #60a5fa}
+.dcell[data-act]{cursor:pointer}
+.dcell[data-act]:active{transform:scale(.93)}
+.callegend{display:flex;flex-wrap:wrap;gap:9px 13px;margin-top:13px;font-size:10.5px;color:var(--dim);font-weight:700}
+.callegend span{display:flex;align-items:center}
+.callegend i{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:5px;flex:0 0 10px}
+.dlist{display:flex;flex-direction:column;gap:7px}
+.dlist .row{display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:12px;
+  background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06)}
+.dlist .row .em{font-size:18px}
+.dlist .row .nm{font-size:13px;font-weight:700;flex:1}
+.dlist .row .tm{font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums}
 </style>
 </head>
 <body>
@@ -351,6 +413,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:19px;heigh
 
   var S = null;
   var tab = 'today';
+  var prevTab = 'today';
   var lastUnlocked = [];
 
   var Q_AUTO_MS = 18000;   // 箴言自动轮播间隔
@@ -407,7 +470,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:19px;heigh
       chests: {},
       achs: [],
       flags: {},
-      settings: { dailyGoal: 3, sound: true, quoteAuto: true }
+      settings: { dailyGoal: 3, sound: true, quoteAuto: true, goalDate: '2027-01-01' }
     };
   }
   function load() {
@@ -427,6 +490,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:19px;heigh
       if (typeof raw.settings.dailyGoal === 'number') S.settings.dailyGoal = raw.settings.dailyGoal;
       if (typeof raw.settings.sound === 'boolean') S.settings.sound = raw.settings.sound;
       if (typeof raw.settings.quoteAuto === 'boolean') S.settings.quoteAuto = raw.settings.quoteAuto;
+      if (typeof raw.settings.goalDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.settings.goalDate)) S.settings.goalDate = raw.settings.goalDate;
     }
     if (raw.createdAt) S.createdAt = raw.createdAt;
 
@@ -535,6 +599,63 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:19px;heigh
       if (Object.keys(seen).length >= total && total > 0) n++;
     }
     return n;
+  }
+
+  /* ---------------- 倒计时 & 日历 ---------------- */
+  var CHALLENGE_DAYS = 88;             // 倒数周期长度（天）
+  function goalKey() { return S.settings.goalDate || '2027-01-01'; }
+  function goalDate() { return parseKey(goalKey()); }
+  function midnight(d) { var x = new Date(d.getTime()); x.setHours(0, 0, 0, 0); return x; }
+  function daysLeft() {
+    return Math.round((goalDate().getTime() - midnight(new Date()).getTime()) / 86400000);
+  }
+  function challengeStart() { return addDays(goalDate(), -CHALLENGE_DAYS); }   // 倒数第 88 天
+  function challengeEnd() { return addDays(goalDate(), -1); }                  // 倒数第 1 天
+  function dayNum(d) { return midnight(d).getTime(); }
+  function inWindow(d) {
+    return dayNum(d) >= dayNum(challengeStart()) && dayNum(d) <= dayNum(challengeEnd());
+  }
+  function dayLevel(n) {
+    var total = S.items.length || 1;
+    if (n <= 0) return 'miss';
+    if (n >= total) return 'full';
+    if (n >= 3) return 'd3';
+    if (n === 2) return 'd2';
+    return 'd1';
+  }
+  // 窗口内的统计
+  function windowStats() {
+    var start = challengeStart(), end = challengeEnd(), today = midnight(new Date());
+    var goal = goalDate();
+    var passed = 0, done = 0, fulls = 0, goals = 0, best = 0, run = 0, missed = 0;
+    var d = new Date(start.getTime());
+    var guard = 0;
+    while (dayNum(d) <= dayNum(end) && guard++ < 400) {
+      var n = dayLogs(dayKey(d)).length;
+      var isPast = dayNum(d) <= dayNum(today);
+      if (isPast) {
+        passed++;
+        if (n > 0) {
+          done++; run++;
+          if (run > best) best = run;
+          if (n >= S.settings.dailyGoal) goals++;
+          if (n >= (S.items.length || 1)) fulls++;
+        } else {
+          missed++; run = 0;
+        }
+      }
+      d = addDays(d, 1);
+    }
+    var left = Math.max(0, daysLeft());
+    return {
+      passed: passed, done: done, fulls: fulls, goals: goals, missed: missed,
+      best: best,
+      cur: Math.min(currentStreak(), CHALLENGE_DAYS),
+      left: left,
+      total: CHALLENGE_DAYS,
+      elapsed: Math.max(0, Math.min(CHALLENGE_DAYS, CHALLENGE_DAYS - left)),
+      rate: passed > 0 ? Math.round(done / passed * 100) : 0
+    };
   }
 
   /* ---------------- 音效 & 特效 ---------------- */
@@ -1011,6 +1132,151 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:19px;heigh
     return '<div class="heat">' + colHtml + '</div>';
   }
 
+  /* ---------------- 倒计时日历视图 ---------------- */
+  function goalLabel() {
+    var g = goalDate();
+    if (g.getMonth() === 0 && g.getDate() === 1) return g.getFullYear() + ' 年元旦';
+    return g.getFullYear() + ' 年 ' + (g.getMonth() + 1) + ' 月 ' + g.getDate() + ' 日';
+  }
+  function shortD(d) { return (d.getMonth() + 1) + '/' + d.getDate(); }
+
+  function viewCalendar() {
+    var st = windowStats();
+    var today = midnight(new Date());
+    var start = challengeStart(), end = challengeEnd(), g = goalDate();
+    var arrived = st.left <= 0;
+    var html = '';
+
+    // ── 倒计时 hero
+    html += '<div class="card cd">' +
+      '<div class="cd-glow"></div>' +
+      '<div class="cd-top">' +
+      '<div>' +
+      '<div class="cd-lab">' + (arrived ? '🎉 目标日到了' : '距离 ' + esc(goalLabel())) + '</div>' +
+      '<div class="cd-line"><span class="cd-num">' + (arrived ? 0 : st.left) + '</span><span class="cd-unit">天</span></div>' +
+      '</div>' +
+      '<div class="cd-goal"><b>' + (st.total - st.elapsed) + ' / ' + st.total + '</b><span>剩余 / 总天数</span></div>' +
+      '</div>' +
+      '<div class="bar" style="margin-top:13px;position:relative"><i style="width:' + (st.elapsed / st.total * 100).toFixed(1) + '%"></i></div>' +
+      '<div class="cd-meta"><span>起点 ' + dayKey(start) + '</span><span>已走过 ' + st.elapsed + ' 天</span><span>终点 ' + dayKey(g) + '</span></div>' +
+      '<div class="cd-chips">' +
+      '<div class="cd-chip"><b>' + st.done + '<i>天</i></b><span>已打卡 · 共 ' + st.total + ' 天</span></div>' +
+      '<div class="cd-chip"><b>' + st.rate + '<i>%</i></b><span>已过天数打卡率</span></div>' +
+      '<div class="cd-chip"><b>' + st.cur + '<i>天</i></b><span>当前连续</span></div>' +
+      '<div class="cd-chip"><b>' + st.best + '<i>天</i></b><span>周期内最长连续</span></div>' +
+      '</div>' +
+      '<div style="position:relative;font-size:11px;color:var(--dim);font-weight:700;margin-top:11px;line-height:1.8">' +
+      '全清 ' + st.fulls + ' 天 · 达标 ' + st.goals + ' 天 · 漏打 ' + st.missed + ' 天' +
+      (st.missed > 0 ? '　（漏打的日子不算废，接着打就好 💪）' : '') +
+      '</div>' +
+      '</div>';
+
+    // ── 88 天全览
+    html += '<div class="card"><div class="sec-title"><span>' + st.total + ' 天全览</span><span>' + dayKey(start) + ' → ' + dayKey(end) + '</span></div>' +
+      cal88() +
+      '<div class="callegend">' +
+      '<span><i style="background:linear-gradient(135deg,#ffd60a,#3b82f6)"></i>全部完成</span>' +
+      '<span><i style="background:#ffd60a"></i>3 项以上</span>' +
+      '<span><i style="background:rgba(255,214,10,.48)"></i>2 项</span>' +
+      '<span><i style="background:rgba(255,214,10,.24)"></i>1 项</span>' +
+      '<span><i style="background:rgba(96,165,250,.16)"></i>漏打</span>' +
+      '<span><i style="background:rgba(255,255,255,.05)"></i>未来</span>' +
+      '</div></div>';
+
+    // ── 月历
+    html += '<div class="card"><div class="sec-title"><span>打卡日历</span><span>点有记录的日期看详情</span></div>' +
+      monthBlocks() +
+      '</div>';
+
+    return html;
+  }
+
+  function cal88() {
+    var start = challengeStart(), today = midnight(new Date());
+    var out = '';
+    for (var i = 0; i < CHALLENGE_DAYS; i++) {
+      var d = addDays(start, i);
+      var n = dayLogs(dayKey(d)).length;
+      var cls = [];
+      if (dayNum(d) > dayNum(today)) cls.push('fut');
+      else cls.push(dayLevel(n));
+      if (dayKey(d) === dayKey(today)) cls.push('tod');
+      out += '<i class="' + cls.join(' ') + '" title="第 ' + (i + 1) + ' 天 · ' + dayKey(d) + ' · ' + (n ? n + ' 项打卡' : '没打卡') + '"></i>';
+    }
+    return '<div class="cal8">' + out + '</div>';
+  }
+
+  function monthBlocks() {
+    var start = challengeStart(), g = goalDate();
+    var html = '', guard = 0;
+    var cur = new Date(start.getFullYear(), start.getMonth(), 1);
+    var lastM = new Date(g.getFullYear(), g.getMonth(), 1);
+    while (dayNum(cur) <= dayNum(lastM) && guard++ < 24) {
+      html += monthBlock(cur);
+      cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
+    }
+    return html;
+  }
+
+  function monthBlock(ym) {
+    var y = ym.getFullYear(), m = ym.getMonth();
+    var today = midnight(new Date());
+    var dim = new Date(y, m + 1, 0).getDate();
+    var lead = (new Date(y, m, 1).getDay() + 6) % 7;   // 周一开头
+    var DOW = ['一', '二', '三', '四', '五', '六', '日'];
+    var cells = '', doneN = 0, i, d;
+
+    for (i = 0; i < 7; i++) cells += '<div class="dw">' + DOW[i] + '</div>';
+    for (i = 0; i < lead; i++) cells += '<div class="dcell blank"></div>';
+
+    for (d = 1; d <= dim; d++) {
+      var dt = new Date(y, m, d);
+      var k = dayKey(dt);
+      var n = dayLogs(k).length;
+      var cls = 'dcell', inner = String(d), clickable = false;
+
+      if (k === goalKey()) { cls += ' goal'; inner = '🎉'; }
+      else if (dayNum(dt) > dayNum(today)) cls += ' fut';
+      else if (!inWindow(dt)) cls += ' out';
+      else cls += ' ' + dayLevel(n);
+      if (k === dayKey(today)) cls += ' today';
+      if (n > 0) { clickable = true; doneN++; }
+
+      cells += '<div class="' + cls + '"' + (clickable ? ' data-act="cal-day" data-k="' + k + '"' : '') +
+        ' title="' + k + ' · ' + (n ? n + ' 项打卡' : '没打卡') + '">' + inner + '</div>';
+    }
+
+    return '<div class="mon">' +
+      '<div class="mon-h"><b>' + y + ' 年 ' + (m + 1) + ' 月</b><span>' + (doneN ? '打卡 ' + doneN + ' 天' : '暂无记录') + '</span></div>' +
+      '<div class="mgrid">' + cells + '</div>' +
+      '</div>';
+  }
+
+  function showDayDetail(k) {
+    var arr = dayLogs(k).slice().sort(function (a, b) { return a.ts - b.ts; });
+    var d = parseKey(k);
+    var w = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][d.getDay()];
+    var html = '<h3>📅 ' + (d.getMonth() + 1) + ' 月 ' + d.getDate() + ' 日 · ' + w + '</h3>';
+    if (!arr.length) {
+      html += '<div class="empty">这天没有打卡记录</div>';
+    } else {
+      var sum = 0;
+      html += '<div class="dlist">';
+      arr.forEach(function (r) {
+        sum += r.got || 0;
+        var it = itemById(r.k);
+        html += '<div class="row"><span class="em">' + (it ? it.emoji : '✅') + '</span>' +
+          '<span class="nm">' + esc(it ? it.name : r.k) + '</span>' +
+          '<span class="tm">' + fmtTime(r.ts) + '</span>' +
+          '<span class="tm" style="color:var(--yellow);font-weight:800">+' + (r.got || 0) + '</span></div>';
+      });
+      html += '</div>';
+      html += '<div style="font-size:11.5px;color:var(--dim);font-weight:700;margin-top:11px">共 ' + arr.length + ' 项 · 获得 ' + sum + ' 积分</div>';
+    }
+    html += '<button class="btn block" data-act="close-modal" style="margin-top:14px">关闭</button>';
+    showModal(html);
+  }
+
   function viewAch() {
     var got = S.achs;
     var html = '<div class="card tight" style="margin-bottom:14px;text-align:center">' +
@@ -1031,7 +1297,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:19px;heigh
   function viewSettings() {
     var html = '';
     html += '<div class="backrow">' +
-      '<button class="btn" data-act="settings">← 返回打卡</button>' +
+      '<button class="btn" data-act="settings">← 返回</button>' +
       '<span style="font-size:12.5px;color:var(--dim);font-weight:700">应用设置</span></div>';
     html += '<div class="card"><div class="sec-title"><span>个人设置</span><span></span></div>';
     html += '<div class="field"><div><div class="lb">昵称</div><div class="hint">分享图上会显示</div></div>' +
@@ -1042,6 +1308,8 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:19px;heigh
       '<button class="switch' + (S.settings.sound ? ' on' : '') + '" data-act="toggle-sound"></button></div>';
     html += '<div class="field"><div><div class="lb">箴言自动轮播</div><div class="hint">每 18 秒换一句名言</div></div>' +
       '<button class="switch' + (S.settings.quoteAuto ? ' on' : '') + '" data-act="toggle-quote-auto"></button></div>';
+    html += '<div class="field"><div><div class="lb">倒计时目标日</div><div class="hint">日历倒数的终点（默认元旦）</div></div>' +
+      '<input class="inp" type="date" style="width:150px" data-edit="goaldate" value="' + goalKey() + '"></div>';
     html += '<div style="font-size:12px;color:var(--dim);padding-top:8px">当前目标：每天完成 <b style="color:var(--yellow)">' + S.settings.dailyGoal + '</b> 项</div>';
     html += '</div>';
 
@@ -1076,6 +1344,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:19px;heigh
   function render() {
     var view = '';
     if (tab === 'today') view = viewToday();
+    else if (tab === 'cal') view = viewCalendar();
     else if (tab === 'stats') view = viewStats();
     else if (tab === 'ach') view = viewAch();
     else view = viewSettings();
@@ -1090,7 +1359,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:19px;heigh
     html += '</div></div>';
 
     html += '<div class="tabs">' +
-      tabBtn('today', '今日打卡') + tabBtn('stats', '统计') + tabBtn('ach', '成就') +
+      tabBtn('today', '今日') + tabBtn('cal', '日历') + tabBtn('stats', '统计') + tabBtn('ach', '成就') +
       '</div>';
 
     html += '<div id="view">' + view + '</div>';
@@ -1462,9 +1731,10 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:19px;heigh
     if (!el) return;
     var act = el.getAttribute('data-act');
 
-    if (act === 'tab') { tab = el.getAttribute('data-tab'); window.scrollTo({ top: 0, behavior: 'smooth' }); render(); return; }
+    if (act === 'tab') { tab = el.getAttribute('data-tab'); prevTab = tab; window.scrollTo({ top: 0, behavior: 'smooth' }); render(); return; }
     if (act === 'settings') {
-      tab = (tab === 'settings') ? 'today' : 'settings';
+      if (tab === 'settings') { tab = prevTab || 'today'; }
+      else { prevTab = tab; tab = 'settings'; }
       window.scrollTo({ top: 0, behavior: 'smooth' });
       render();
       return;
@@ -1473,6 +1743,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:19px;heigh
     if (act === 'undo') { undo(+el.getAttribute('data-ts')); return; }
     if (act === 'share') { openShare(); return; }
     if (act === 'close-modal') { closeModal(); return; }
+    if (act === 'cal-day') { showDayDetail(el.getAttribute('data-k')); return; }
     if (act === 'q-prev') { qMove(-1); return; }
     if (act === 'q-next') { qMove(1); return; }
     if (act === 'q-random') { qRandom(); return; }
@@ -1564,6 +1835,15 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:19px;heigh
       var lab = t.closest('.card') && t.closest('.card').querySelector('b');
       if (lab) lab.textContent = t.value;
       save();
+      return;
+    }
+    if (key === 'goaldate') {
+      var gv = t.value;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(gv)) {
+        S.settings.goalDate = gv;
+        save();
+        toast('倒计时目标日已更新为 ' + gv);
+      }
       return;
     }
     var iid = t.getAttribute('data-item');
