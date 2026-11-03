@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/sync.js": {
+      "regions": ["hkg1"],
+      "maxDuration": 10
+    }
+  }
+}
