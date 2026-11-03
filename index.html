@@ -311,6 +311,8 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:19px;heigh
 .dlist .row .em{font-size:18px}
 .dlist .row .nm{font-size:13px;font-weight:700;flex:1}
 .dlist .row .tm{font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums}
+.dlist .row.sel{background:rgba(255,214,10,.14);border-color:rgba(255,214,10,.55)}
+.dlist .row .mk{font-size:10px;color:#ffd60a;border:1px solid rgba(255,214,10,.4);border-radius:5px;padding:1px 5px;font-weight:700;flex:0 0 auto}
 </style>
 </head>
 <body>
@@ -452,10 +454,11 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:19px;heigh
       { id:'pushup',  emoji:'💪', name:'俯卧撑',     points:8  },
       { id:'situp',   emoji:'🐠', name:'鱼缸',       points:8  },
       { id:'grip',    emoji:'🦾', name:'臂力棒',     points:8  },
-      { id:'binance', emoji:'📈', name:'币安交易',   points:10 },
+      { id:'binance', emoji:'📈', name:'BNTrade',    points:10 },
       { id:'card',    emoji:'🎴', name:'精英卡片',   points:6  },
       { id:'drum',    emoji:'🥁', name:'打鼓',       points:10 },
       { id:'breath',  emoji:'🧘', name:'冥想深呼吸', points:6  },
+      { id:'dedao',   emoji:'🎧', name:'得到头条',   points:8  },
       { id:'nodrink', emoji:'🚫', name:'今天不喝酒', points:10 }
     ];
   }
@@ -494,12 +497,17 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:19px;heigh
     }
     if (raw.createdAt) S.createdAt = raw.createdAt;
 
-    // 迁移：把默认项目「仰卧起坐」更名为「鱼缸」（沿用原 id，历史打卡记录不丢）
+    // 迁移：把默认项目「仰卧起坐」更名为「鱼缸」、「币安交易」更名为「BNTrade」
+    // （沿用原 id，历史打卡记录不丢）
     var migrated = false;
     for (var mi = 0; mi < S.items.length; mi++) {
       if (S.items[mi].id === 'situp' && S.items[mi].name === '仰卧起坐') {
         S.items[mi].name = '鱼缸';
         S.items[mi].emoji = '🐠';
+        migrated = true;
+      }
+      if (S.items[mi].id === 'binance' && S.items[mi].name === '币安交易') {
+        S.items[mi].name = 'BNTrade';
         migrated = true;
       }
     }
@@ -515,10 +523,26 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:19px;heigh
       S.flags.addedNoDrink = true;
       try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}
     }
+
+    // 迁移：补齐新增的默认项目「得到头条」（只自动补一次，之后手动删掉就不会再回来）
+    if (!S.flags.addedDedao) {
+      var hasDD = false;
+      for (var di = 0; di < S.items.length; di++) { if (S.items[di].id === 'dedao') hasDD = true; }
+      if (!hasDD && S.items.length < 16) {
+        // 插到「今天不喝酒」前面，让那一项继续收尾
+        var ndIdx = -1;
+        for (var dj = 0; dj < S.items.length; dj++) { if (S.items[dj].id === 'nodrink') ndIdx = dj; }
+        var ddItem = { id: 'dedao', emoji: '🎧', name: '得到头条', points: 8 };
+        if (ndIdx >= 0) { S.items.splice(ndIdx, 0, ddItem); } else { S.items.push(ddItem); }
+      }
+      S.flags.addedDedao = true;
+      try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}
+    }
   }
   function save() {
     try { localStorage.setItem(KEY, JSON.stringify(S)); }
     catch (e) { toast('本地存储写入失败，可能空间已满', 'bad'); }
+    if (!_syncQuiet) syncSoon();   // 本机数据变了，稍后静默回推云端
   }
 
   /* ---------------- 统计 ---------------- */
@@ -581,6 +605,14 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:19px;heigh
     while (hasItem(dayLogs(dayKey(d)), id) && guard++ < 3650) { n++; d = addDays(d, -1); }
     return n;
   }
+  // 连击数，但从指定日期往回数（补打卡按那天的倍率记分用）
+  function itemStreakAt(id, key) {
+    var n = 0, guard = 0;
+    var d = parseKey(key);
+    if (!hasItem(dayLogs(dayKey(d)), id)) d = addDays(d, -1);
+    while (hasItem(dayLogs(dayKey(d)), id) && guard++ < 3650) { n++; d = addDays(d, -1); }
+    return n;
+  }
   function itemTotal(id) {
     var n = 0;
     for (var k in S.logs) { if (hasItem(S.logs[k], id)) n += S.logs[k].filter(function (r) { return r.k === id; }).length; }
@@ -603,6 +635,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:19px;heigh
 
   /* ---------------- 倒计时 & 日历 ---------------- */
   var CHALLENGE_DAYS = 88;             // 倒数周期长度（天）
+  var MAKEUP_LIMIT = 7;                // 最多补最近 7 天（含今天），再早的只能看不能补
   function goalKey() { return S.settings.goalDate || '2027-01-01'; }
   function goalDate() { return parseKey(goalKey()); }
   function midnight(d) { var x = new Date(d.getTime()); x.setHours(0, 0, 0, 0); return x; }
@@ -612,6 +645,8 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:19px;heigh
   function challengeStart() { return addDays(goalDate(), -CHALLENGE_DAYS); }   // 倒数第 88 天
   function challengeEnd() { return addDays(goalDate(), -1); }                  // 倒数第 1 天
   function dayNum(d) { return midnight(d).getTime(); }
+  // 两个日期相差的天数（a - b），用于补打卡窗口判断
+  function dayGap(a, b) { return Math.round((midnight(a).getTime() - midnight(b).getTime()) / 86400000); }
   function inWindow(d) {
     return dayNum(d) >= dayNum(challengeStart()) && dayNum(d) <= dayNum(challengeEnd());
   }
@@ -1238,9 +1273,13 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:19px;heigh
       if (k === goalKey()) { cls += ' goal'; inner = '🎉'; }
       else if (dayNum(dt) > dayNum(today)) cls += ' fut';
       else if (!inWindow(dt)) cls += ' out';
-      else cls += ' ' + dayLevel(n);
+      else {
+        cls += ' ' + dayLevel(n);
+        // 没打卡的最近 7 天也能点开 —— 进去补打卡
+        clickable = dayGap(today, dt) <= MAKEUP_LIMIT;
+      }
       if (k === dayKey(today)) cls += ' today';
-      if (n > 0) { clickable = true; doneN++; }
+      if (n > 0) doneN++;
 
       cells += '<div class="' + cls + '"' + (clickable ? ' data-act="cal-day" data-k="' + k + '"' : '') +
         ' title="' + k + ' · ' + (n ? n + ' 项打卡' : '没打卡') + '">' + inner + '</div>';
@@ -1267,14 +1306,97 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:19px;heigh
         var it = itemById(r.k);
         html += '<div class="row"><span class="em">' + (it ? it.emoji : '✅') + '</span>' +
           '<span class="nm">' + esc(it ? it.name : r.k) + '</span>' +
+          (r.m === 1 ? '<span class="mk">补</span>' : '') +
           '<span class="tm">' + fmtTime(r.ts) + '</span>' +
           '<span class="tm" style="color:var(--yellow);font-weight:800">+' + (r.got || 0) + '</span></div>';
       });
       html += '</div>';
       html += '<div style="font-size:11.5px;color:var(--dim);font-weight:700;margin-top:11px">共 ' + arr.length + ' 项 · 获得 ' + sum + ' 积分</div>';
     }
-    html += '<button class="btn block" data-act="close-modal" style="margin-top:14px">关闭</button>';
+    var gap = dayGap(new Date(), d);
+    if (gap >= 0 && gap <= MAKEUP_LIMIT) {
+      html += '<button class="btn primary block" data-act="makeup" data-k="' + k + '" style="margin-top:13px">✍️ 补打卡' + (arr.length ? '' : '这天') + '</button>';
+    }
+    html += '<button class="btn block" data-act="close-modal" style="margin-top:10px">关闭</button>';
     showModal(html);
+  }
+
+  /* ---- 补打卡：选日期 → 勾项目 → 按那天的倍率补记 ---- */
+  var _mkSel = {};
+
+  function makeupGap(k) { return dayGap(new Date(), parseKey(k)); }
+
+  // 补打记录的时间戳落在补打那一天内（当天的日历时刻 = 现在的时分秒）
+  function makeupTs(k) {
+    var d = parseKey(k), n = new Date();
+    d.setHours(n.getHours(), n.getMinutes(), n.getSeconds(), 0);
+    return d.getTime();
+  }
+
+  function showMakeup(k) {
+    if (makeupGap(k) > MAKEUP_LIMIT) { toast('只能补最近 ' + MAKEUP_LIMIT + ' 天，再早的记不了啦', 'bad'); return; }
+    _mkSel = {};
+    var d = parseKey(k);
+    var w = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][d.getDay()];
+    var day = dayLogs(k);
+    var html = '<h3>✍️ 补打卡 · ' + (d.getMonth() + 1) + ' 月 ' + d.getDate() + ' 日 · ' + w + '</h3>';
+    html += '<div style="font-size:12px;color:var(--dim);line-height:1.7;margin-bottom:10px">勾选那天实际做了的项目，积分按<b style="color:var(--txt)">那天的连击倍率</b>记入，统计会一并更新。</div>';
+    html += '<div class="dlist">';
+    S.items.forEach(function (it) {
+      var n = day.filter(function (r) { return r.k === it.id; }).length;
+      var st = itemStreakAt(it.id, k);
+      var mult = +(1 + Math.min(st, 10) * 0.1).toFixed(2);
+      var got = Math.round(it.points * mult) + (day.length === 0 ? 5 : 0);
+      html += '<div class="row" data-act="mk-item" data-id="' + it.id + '" style="cursor:pointer">' +
+        '<span class="em">' + it.emoji + '</span>' +
+        '<span class="nm">' + esc(it.name) + (n ? ' <span style="font-size:10px;color:var(--dim);font-weight:400">已打 ' + n + ' 次</span>' : '') + '</span>' +
+        '<span class="tm" style="color:var(--yellow);font-weight:800">+' + got + '</span></div>';
+    });
+    html += '</div>';
+    html += '<div class="btnrow" style="margin-top:14px">' +
+      '<button class="btn" data-act="close-modal">取消</button>' +
+      '<button class="btn primary" data-act="mk-go" data-k="' + k + '">确认补打</button></div>';
+    showModal(html);
+  }
+
+  function mkBtnRefresh() {
+    var b = document.querySelector('[data-act="mk-go"]');
+    var n = Object.keys(_mkSel).length;
+    if (b) b.textContent = n ? ('确认补打（' + n + '）') : '确认补打';
+  }
+
+  function makeupGo(k) {
+    var ids = Object.keys(_mkSel);
+    if (!ids.length) { toast('先勾选要补打的项目', 'bad'); return; }
+    if (makeupGap(k) > MAKEUP_LIMIT) { toast('只能补最近 ' + MAKEUP_LIMIT + ' 天', 'bad'); return; }
+    var day = S.logs[k] || (S.logs[k] = []);
+    var gain = 0, chestGain = 0;
+    ids.forEach(function (id) {
+      var it = itemById(id);
+      if (!it) return;
+      var st = itemStreakAt(id, k);
+      var mult = +(1 + Math.min(st, 10) * 0.1).toFixed(2);
+      var got = Math.round(it.points * mult);
+      var isFirst = day.length === 0;
+      if (isFirst) got += 5;
+      day.push({ k: id, ts: makeupTs(k), got: got, base: it.points, mult: mult, m: 1 });
+      gain += got;
+    });
+    if (day.length >= S.settings.dailyGoal && !S.chests[k]) {
+      S.chests[k] = true;
+      chestGain = 20 + Math.floor(Math.random() * 81);
+      S.bonus.push({ ts: Date.now(), amount: chestGain, reason: '今日目标达成宝箱' });
+    }
+    closeModal();
+    save(); render(); checkAch();
+    sfxCheck();
+    if (chestGain) {
+      confetti(70);
+      setTimeout(function () { sfxChest(); }, 180);
+      toast('🎁 补打达标！宝箱开出 ' + chestGain + ' 积分', 'good');
+    } else {
+      toast('已补打 ' + ids.length + ' 项 · +' + gain + ' 积分', 'good');
+    }
   }
 
   function viewAch() {
@@ -1328,14 +1450,19 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:19px;heigh
     html += '<div style="font-size:11px;color:var(--dim);margin-top:9px;line-height:1.7">第三列是完成的积分；连击会额外加成（最多 x2）。改动即时保存。</div>';
     html += '</div>';
 
-    html += '<div class="card"><div class="sec-title"><span>数据</span><span>仅存本机</span></div>' +
+    html += syncCardHtml();
+
+    html += '<div class="card"><div class="sec-title"><span>数据备份</span><span>手动档</span></div>' +
       '<div class="btnrow" style="margin-bottom:10px">' +
       '<button class="btn" data-act="export">⬇️ 导出备份</button>' +
       '<button class="btn" data-act="import">⬆️ 导入备份</button></div>' +
       '<button class="btn block" style="margin-bottom:10px" data-act="demo">🎬 填充演示数据（看效果）</button>' +
       '<button class="btn block warn" data-act="reset">清空全部数据</button>' +
-      '<input type="file" id="fileInput" accept="application/json" style="display:none">' +
-      '<div style="font-size:11px;color:var(--dim);margin-top:10px;line-height:1.7">数据保存在浏览器 localStorage，换设备/清缓存会丢，建议偶尔导出备份。</div>' +
+      '<div style="font-size:11px;color:var(--dim);margin-top:10px;line-height:1.7">' +
+      (syncOn()
+        ? '开了同步之后，换设备不用操心；这里留着当「手动档」：导出一段文本存微信或备忘录，是最可靠的一份离线备份，也可以一次带走全部数据。'
+        : '数据存在本机浏览器里，换浏览器 / 换手机 / 清缓存都会看不到。想带走：先「导出备份」复制那段文本发到自己的微信或备忘录；在新设备上「导入备份」粘回去，两边记录会自动合并。') +
+      '</div>' +
       '</div>';
 
     return html;
@@ -1647,42 +1774,560 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:19px;heigh
   }
 
   /* ---------------- 导入导出 ---------------- */
-  function exportData() {
-    var blob = new Blob([JSON.stringify(S, null, 2)], { type: 'application/json' });
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement('a');
-    a.href = url;
-    a.download = '打卡岛备份-' + dayKey() + '.json';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(function () { URL.revokeObjectURL(url); }, 3000);
-    toast('已导出备份文件', 'good');
+  var _pendingBackup = null;   // 待确认导入的备份（已解析、已清洗）
+  var _lastPaste = '';         // 上次粘贴/选择的备份原文，返回上一步时回填
+
+  function buildBackupText() { return JSON.stringify(S); }
+
+  // 概览：多少天有记录、总积分、几个项目
+  function backupSummary(o) {
+    var days = 0, sum = 0, i, j;
+    var lg = (o && o.logs) || {};
+    Object.keys(lg).forEach(function (k) {
+      var arr = lg[k] || [];
+      if (arr.length) days++;
+      for (i = 0; i < arr.length; i++) sum += (arr[i].got || 0);
+    });
+    var bn = (o && o.bonus) || [];
+    for (j = 0; j < bn.length; j++) sum += (bn[j].amount || 0);
+    return { days: days, sum: Math.round(sum), items: ((o && o.items) || []).length };
   }
+
+  // 清洗外来数据：坏字段一律丢掉，避免一份脏备份把页面搞白屏
+  function normalizeBackup(o) {
+    var items = [];
+    (Array.isArray(o.items) ? o.items : []).forEach(function (it) {
+      if (!it || typeof it !== 'object' || typeof it.id !== 'string' || !it.id) return;
+      if (items.length >= 16) return;
+      var pts = (typeof it.points === 'number' && it.points > 0) ? Math.min(99, it.points) : 1;
+      items.push({
+        id: it.id,
+        emoji: (typeof it.emoji === 'string' && it.emoji) ? it.emoji.slice(0, 4) : '⭐',
+        name: (typeof it.name === 'string' && it.name) ? it.name.slice(0, 8) : it.id.slice(0, 8),
+        points: pts
+      });
+    });
+
+    var logs = {};
+    var src = (o.logs && typeof o.logs === 'object') ? o.logs : {};
+    Object.keys(src).forEach(function (day) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !Array.isArray(src[day])) return;
+      var out = [];
+      src[day].forEach(function (r) {
+        if (!r || typeof r !== 'object' || typeof r.k !== 'string' || !r.k) return;
+        out.push({
+          k: r.k,
+          ts: typeof r.ts === 'number' ? r.ts : 0,
+          got: typeof r.got === 'number' ? r.got : 0,
+          base: typeof r.base === 'number' ? r.base : 0,
+          mult: typeof r.mult === 'number' ? r.mult : 1
+        });
+        if (r.m === 1) out[out.length - 1].m = 1;   // 补打卡标记，原样保留
+      });
+      if (out.length) {
+        out.sort(function (a, b) { return a.ts - b.ts; });
+        logs[day] = out;
+      }
+    });
+
+    var bonus = [];
+    (Array.isArray(o.bonus) ? o.bonus : []).forEach(function (b) {
+      if (!b || typeof b !== 'object') return;
+      bonus.push({
+        ts: typeof b.ts === 'number' ? b.ts : 0,
+        amount: typeof b.amount === 'number' ? b.amount : 0,
+        reason: typeof b.reason === 'string' ? b.reason : '奖励'
+      });
+    });
+
+    var chests = {};
+    if (o.chests && typeof o.chests === 'object') {
+      Object.keys(o.chests).forEach(function (k) {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(k) && o.chests[k]) chests[k] = true;
+      });
+    }
+
+    var achs = [];
+    (Array.isArray(o.achs) ? o.achs : []).forEach(function (a) {
+      if (typeof a === 'string' && achs.indexOf(a) < 0) achs.push(a);
+    });
+
+    var flags = {};
+    if (o.flags && typeof o.flags === 'object') {
+      if (o.flags.addedNoDrink) flags.addedNoDrink = true;
+      if (o.flags.addedDedao) flags.addedDedao = true;
+      if (Array.isArray(o.flags.qFavs)) flags.qFavs = o.flags.qFavs.slice(0, 60);
+    }
+
+    var settings = { dailyGoal: 3, sound: true, quoteAuto: true, goalDate: '2027-01-01' };
+    if (o.settings && typeof o.settings === 'object') {
+      if (typeof o.settings.dailyGoal === 'number') settings.dailyGoal = Math.max(1, Math.min(8, Math.round(o.settings.dailyGoal)));
+      if (typeof o.settings.sound === 'boolean') settings.sound = o.settings.sound;
+      if (typeof o.settings.quoteAuto === 'boolean') settings.quoteAuto = o.settings.quoteAuto;
+      if (typeof o.settings.goalDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(o.settings.goalDate)) settings.goalDate = o.settings.goalDate;
+    }
+
+    return {
+      v: 1,
+      name: typeof o.name === 'string' ? o.name.slice(0, 12) : '',
+      createdAt: typeof o.createdAt === 'number' ? o.createdAt : Date.now(),
+      items: items, logs: logs, bonus: bonus, chests: chests,
+      achs: achs, flags: flags, settings: settings
+    };
+  }
+
+  // 合并：以当前设备为主，把备份里的记录并进来（同一天里时刻相同的那一条只算一次）
+  function mergeState(cur, bak) {
+    var out = JSON.parse(JSON.stringify(cur));
+    if (!out.logs) out.logs = {};
+    if (!out.bonus) out.bonus = [];
+    if (!out.chests) out.chests = {};
+    if (!out.achs) out.achs = [];
+    if (!out.flags) out.flags = {};
+
+    // 项目：以当前配置为准，备份里独有的补进来
+    var hasId = {};
+    out.items.forEach(function (it) { hasId[it.id] = true; });
+    bak.items.forEach(function (it) {
+      if (!hasId[it.id] && out.items.length < 16) { out.items.push(it); hasId[it.id] = true; }
+    });
+
+    // 打卡记录：按天取并集
+    Object.keys(bak.logs).forEach(function (day) {
+      if (!out.logs[day]) out.logs[day] = [];
+      var arr = out.logs[day], seen = {};
+      arr.forEach(function (r) { seen[r.k + '@' + r.ts] = true; });
+      bak.logs[day].forEach(function (r) {
+        var sig = r.k + '@' + r.ts;
+        if (!seen[sig]) { arr.push(r); seen[sig] = true; }
+      });
+      arr.sort(function (a, b) { return a.ts - b.ts; });
+    });
+
+    // 宝箱流水：按时刻 + 金额去重
+    var bSeen = {}, bAll = out.bonus.concat(bak.bonus);
+    out.bonus = [];
+    bAll.forEach(function (b) {
+      var sig = b.ts + '@' + b.amount;
+      if (!bSeen[sig]) { bSeen[sig] = true; out.bonus.push(b); }
+    });
+    out.bonus.sort(function (a, b) { return a.ts - b.ts; });
+
+    // 宝箱标记与徽章：取并集
+    Object.keys(bak.chests).forEach(function (k) { if (bak.chests[k]) out.chests[k] = true; });
+    bak.achs.forEach(function (a) { if (out.achs.indexOf(a) < 0) out.achs.push(a); });
+
+    // 迁移标记取或，收藏的箴言取并集
+    if (bak.flags.addedNoDrink) out.flags.addedNoDrink = true;
+    if (bak.flags.addedDedao) out.flags.addedDedao = true;
+    if (bak.flags.qFavs && bak.flags.qFavs.length) {
+      var qSeen = {}, qAll = (out.flags.qFavs || []).concat(bak.flags.qFavs);
+      out.flags.qFavs = [];
+      qAll.forEach(function (q) {
+        var sig = typeof q + ':' + String(q);
+        if (!qSeen[sig]) { qSeen[sig] = true; out.flags.qFavs.push(q); }
+      });
+    }
+
+    // 开始时间取更早的那个
+    if (bak.createdAt && bak.createdAt < out.createdAt) out.createdAt = bak.createdAt;
+
+    // 本机还没填昵称（比如刚接入的新设备），就沿用云端那个
+    if (!out.name && bak.name) out.name = bak.name;
+
+    return out;
+  }
+
+  /* ---------------- 云端同步（Vercel 函数 + Turso） ----------------
+     同步码 = 钥匙 = 身份：只存在本机，不随数据同步出去，库里存的是它的哈希。
+     所有同步都走同一套「拉取 → 合并 → 回推」，撞车（409）就自动重来一轮。
+     任何失败只影响这一次有没有同步上去，绝不影响本机打卡。            */
+  var SYNC_STORE = 'checkin-island.sync';
+  var SYNC_API = '/api/sync';
+  var SYNC_TICK_MS = 15 * 60 * 1000;
+  var SYNC_ALPHA = 'abcdefghijklmnopqrstuvwxyz234567';   // base32 字母表
+  var _syncBusy = false;
+  var _syncQuiet = false;        // 同步过程内部产生的写入，不再触发回推
+  var _syncSoonTimer = null;
+  var _syncTick = null;
+  var _syncState = { last: 0, ok: true, msg: '' };
+
+  function syncKey() { try { return localStorage.getItem(SYNC_STORE) || ''; } catch (e) { return ''; } }
+  function syncOn() { return !!syncKey(); }
+  function syncKeySet(v) {
+    try { if (v) localStorage.setItem(SYNC_STORE, v); else localStorage.removeItem(SYNC_STORE); } catch (e) {}
+  }
+  function syncOkKey(k) { return /^ck_[a-z0-9]{16,64}$/.test(String(k || '')); }
+  function syncMask() {
+    var k = syncKey();
+    return k ? k.slice(0, 9) + '······' + k.slice(-4) : '';
+  }
+  function syncMakeKey() {
+    var buf = new Uint8Array(32), i, s = '';
+    if (window.crypto && window.crypto.getRandomValues) { window.crypto.getRandomValues(buf); }
+    else { for (i = 0; i < 32; i++) buf[i] = Math.floor(Math.random() * 256); }
+    for (i = 0; i < 32; i++) s += SYNC_ALPHA[buf[i] % 32];
+    return 'ck_' + s;
+  }
+
+  // 一次 API 调用；撞车（409）不抛错，原样交给上层合并
+  function syncApi(op, extra) {
+    var body = { op: op, key: syncKey() }, kk;
+    if (extra) { for (kk in extra) { if (Object.prototype.hasOwnProperty.call(extra, kk)) body[kk] = extra[kk]; } }
+    var ctrl = window.AbortController ? new AbortController() : null;
+    var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 13000) : null;
+    function done() { if (timer) clearTimeout(timer); }
+    return fetch(SYNC_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: ctrl ? ctrl.signal : undefined
+    }).then(function (r) {
+      return r.text().then(function (t) {
+        var j = null;
+        try { j = JSON.parse(t); } catch (e) { j = null; }
+        if (!j || typeof j !== 'object') throw { code: 'bad_response', message: '云端返回的内容看不懂' };
+        if (j.conflict) {   // 别的设备抢在前面写了：抛出，由同步轮次合并后重推
+          throw { code: 'conflict', payload: j.payload || '', ver: j.ver || 0 };
+        }
+        if (!r.ok || j.ok === false) {
+          throw { code: j.error || ('http_' + r.status), message: j.message || ('同步失败（HTTP ' + r.status + '）') };
+        }
+        return j;
+      });
+    }).then(function (v) { done(); return v; }, function (e) {
+      done();
+      if (e && e.code) throw e;
+      throw { code: 'network', message: (e && e.name === 'AbortError') ? '网络超时' : '网络连不上云端' };
+    });
+  }
+
+  // 把云端那一份合并进本机，返回是否真的并进来了东西
+  function syncAbsorb(payloadStr) {
+    var res = parseBackup(payloadStr);
+    if (!res.ok) return false;
+    var before = JSON.stringify(S);
+    var merged = mergeState(S, res.ok);
+    if (JSON.stringify(merged) === before) return false;
+    _syncQuiet = true;
+    S = merged;
+    save();
+    _syncQuiet = false;
+    syncRepaint();
+    return true;
+  }
+
+  // 用户正在输入时不要重渲染（会把输入框内容顶掉）
+  function syncRepaint() {
+    var ae = document.activeElement;
+    if (ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName || '')) return;
+    render();
+  }
+
+  async function syncRound() {
+    var got = false, round = 0;
+    while (round < 3) {
+      round++;
+      var pulled = await syncApi('pull');
+      var ver = 0;
+      if (pulled.empty) { ver = 0; }
+      else {
+        ver = pulled.ver || 0;
+        if (pulled.payload) got = syncAbsorb(pulled.payload) || got;
+      }
+      try {
+        await syncApi('push', { baseVer: ver, payload: JSON.stringify(S) });
+        return got;
+      } catch (e) {
+        if (e && e.code === 'conflict' && e.payload) {   // 另一端刚写过：先并进来再推
+          got = syncAbsorb(e.payload) || got;
+          continue;
+        }
+        throw e;
+      }
+    }
+    throw { code: 'conflict_loop', message: '两台设备同时改动太频繁，稍后再试' };
+  }
+
+  async function syncNow(opts) {
+    opts = opts || {};
+    if (!syncOn()) { if (!opts.silent) toast('还没连接云端', 'bad'); return { ok: false, code: 'nokey' }; }
+    if (_syncBusy) return { ok: false, code: 'busy' };
+    _syncBusy = true;
+    var wasOk = _syncState.ok;
+    try {
+      var got = await syncRound();
+      _syncState = { last: Date.now(), ok: true, msg: got ? '已合入云端的新记录' : '已是最新' };
+      if (!opts.silent) toast(_syncState.msg, 'good');
+      return { ok: true, got: got };
+    } catch (e) {
+      var er = (e && e.code) ? e : { code: 'unknown', message: (e && e.message) || '同步失败' };
+      _syncState = { last: Date.now(), ok: false, msg: er.message };
+      if (!opts.silent || wasOk) toast('同步没成功：' + er.message + '（本机记录不受影响）', 'bad');
+      return { ok: false, code: er.code, message: er.message };
+    } finally {
+      _syncBusy = false;
+      if (tab === 'settings') syncRepaint();
+    }
+  }
+
+  // 本机数据变了 → 稍后静默回推
+  function syncSoon(delay) {
+    if (!syncOn()) return;
+    if (_syncSoonTimer) clearTimeout(_syncSoonTimer);
+    _syncSoonTimer = setTimeout(function () {
+      _syncSoonTimer = null;
+      syncNow({ silent: true });
+    }, delay == null ? 2500 : delay);
+  }
+
+  function syncBoot() {
+    if (!syncOn()) return;
+    setTimeout(function () { syncNow({ silent: true }); }, 1200);
+    if (_syncTick) clearInterval(_syncTick);
+    _syncTick = setInterval(function () {
+      if (document.visibilityState === 'visible') syncNow({ silent: true });
+    }, SYNC_TICK_MS);
+  }
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') syncSoon(900);
+  });
+  window.addEventListener('online', function () { syncSoon(600); });
+
+  /* ---- 设置页里那张同步卡片 ---- */
+  function syncStatusText() {
+    if (!_syncState.last) return '还没同步过';
+    return (_syncState.ok ? '✅ 上次同步 ' : '⚠️ 上次没成功 ') + fmtTime(_syncState.last) + ' · ' + _syncState.msg;
+  }
+
+  function syncCardHtml() {
+    var html = '<div class="card"><div class="sec-title"><span>多设备同步</span><span>' + (syncOn() ? '已开启' : '未开启') + '</span></div>';
+    if (!syncOn()) {
+      html += '<div style="font-size:12px;color:var(--dim);line-height:1.8;margin-bottom:12px">' +
+        '手机、电脑共用同一份数据：在一台设备上生成同步码，到另一台设备粘贴同一个码。之后打卡会在后台自动合并，两边都不丢。<br>' +
+        '同步码只存在本机，不会跟着数据传出去。</div>' +
+        '<div class="btnrow"><button class="btn primary" data-act="sync-create">🔗 生成同步码</button>' +
+        '<button class="btn" data-act="sync-join">⌨️ 我有同步码</button></div>';
+    } else {
+      html += '<div style="font-size:12.5px;line-height:1.9">同步码　<b style="color:var(--yellow);letter-spacing:.6px">' + esc(syncMask()) + '</b><br>' +
+        '<span style="font-size:12px;color:var(--dim)">' + esc(syncStatusText()) + '</span></div>' +
+        '<div class="btnrow" style="margin:12px 0 10px">' +
+        '<button class="btn primary" data-act="sync-now">🔄 立即同步</button>' +
+        '<button class="btn" data-act="sync-copy">📋 复制同步码</button></div>' +
+        '<div class="btnrow">' +
+        '<button class="btn" data-act="sync-show">👁 看完整同步码</button>' +
+        '<button class="btn" data-act="sync-off">🚫 断开</button></div>' +
+        '<button class="btn block warn" style="margin-top:10px" data-act="sync-wipe">删除云端数据</button>' +
+        '<div style="font-size:11px;color:var(--dim);margin-top:11px;line-height:1.7">' +
+        '打卡先写本机、再后台同步：没网也照打，联网后会自动补上，同步失败不影响本机记录。<br>' +
+        '同步码就是唯一的钥匙，谁拿到都能看到你的数据（云端存的是明文 JSON），别外发。<br>' +
+        '「断开」只是停掉这台设备的同步，本机记录和云端副本都还在。</div>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function syncShowKeyCard() {
+    var k = syncKey();
+    if (!k) { toast('还没生成同步码', 'bad'); return; }
+    showModal('<h3>🔑 完整同步码</h3>' +
+      '<div style="font-size:12.5px;color:var(--dim);line-height:1.8;margin-bottom:12px">' +
+      '在另一台设备上打开同一个网址 → 设置 → 多设备同步 → 「我有同步码」→ 粘贴下面这串。</div>' +
+      '<textarea readonly class="inp" style="width:100%;height:62px;font-size:12px;line-height:1.6;word-break:break-all;resize:none">' + esc(k) + '</textarea>' +
+      '<div class="btnrow" style="margin-top:12px">' +
+      '<button class="btn primary" data-act="sync-copy">📋 复制</button>' +
+      '<button class="btn" data-act="close-modal">关闭</button></div>');
+  }
+
+  function syncCreate() {
+    if (syncOn()) return;
+    var key = syncMakeKey();
+    syncKeySet(key);
+    syncNow({ silent: true }).then(function (r) {
+      if (!r.ok) {
+        syncKeySet('');                       // 云端没配好/连不上，就不留下这串码
+        render();
+        toast('连不上云端（' + (r.message || r.code) + '），同步码没有保存', 'bad');
+        return;
+      }
+      render();
+      showModal('<h3>🔗 同步码已生成</h3>' +
+        '<div style="font-size:12.5px;color:var(--dim);line-height:1.8;margin-bottom:12px">' +
+        '在另一台设备上打开同一个网址 → 设置 → 多设备同步 → 「我有同步码」→ 粘贴下面这串。粘贴后两台设备的数据会自动合并。</div>' +
+        '<textarea id="syncKeyTxt" readonly class="inp" style="width:100%;height:62px;font-size:12px;line-height:1.6;word-break:break-all;resize:none">' + esc(key) + '</textarea>' +
+        '<div class="btnrow" style="margin-top:12px">' +
+        '<button class="btn primary" data-act="sync-copy">📋 复制同步码</button>' +
+        '<button class="btn" data-act="close-modal">关闭</button></div>' +
+        '<div style="font-size:11px;color:var(--dim);margin-top:10px;line-height:1.7">这串码就是钥匙，别发到群里。万一丢了：本机数据还在，重新生成一个同步码，再到其他设备换一下就行。</div>');
+    });
+  }
+
+  function syncJoin() {
+    showModal('<h3>⌨️ 输入同步码</h3>' +
+      '<div style="font-size:12.5px;color:var(--dim);line-height:1.8;margin-bottom:12px">把另一台设备上生成的同步码粘到这里。连接后本机记录会和云端合并，两边都保留。</div>' +
+      '<textarea id="joinKeyTxt" class="inp" placeholder="ck_ 开头的一串字母数字" style="width:100%;height:62px;font-size:12px;line-height:1.6;word-break:break-all;resize:none"></textarea>' +
+      '<div class="btnrow" style="margin-top:12px">' +
+      '<button class="btn primary" data-act="sync-join-go">连接</button>' +
+      '<button class="btn" data-act="close-modal">取消</button></div>');
+  }
+
+  function syncJoinGo() {
+    var ta = document.getElementById('joinKeyTxt');
+    var key = String(ta ? ta.value : '').trim().toLowerCase().replace(/[\s\u200b]+/g, '');
+    if (!syncOkKey(key)) { toast('同步码格式不对，应该以 ck_ 开头', 'bad'); return; }
+    syncKeySet(key);
+    closeModal();
+    syncNow({ silent: true }).then(function (r) {
+      render();
+      if (r.ok) {
+        var s = backupSummary(S);
+        toast(r.got ? ('已连接，云端记录已合并（现在 ' + s.days + ' 天 / ' + s.sum + ' 分）') : '已连接云端', 'good');
+      } else {
+        toast('同步码存下了，但这次没连上：' + (r.message || r.code), 'bad');
+      }
+    });
+  }
+
+  function syncOff() {
+    showModal('<h3>🚫 断开同步</h3>' +
+      '<div style="font-size:13px;color:var(--dim);line-height:1.8;margin-bottom:16px">' +
+      '只停掉这台设备的同步：<b style="color:var(--txt)">本机记录不动，云端那份也不动</b>。<br>' +
+      '以后想接回来，重新粘贴同一个同步码即可。</div>' +
+      '<div class="btnrow"><button class="btn" data-act="close-modal">再想想</button>' +
+      '<button class="btn primary" data-act="sync-off-go">确认断开</button></div>');
+  }
+
+  function syncWipe() {
+    showModal('<h3>⚠️ 删除云端数据</h3>' +
+      '<div style="font-size:13px;color:var(--dim);line-height:1.8;margin-bottom:16px">' +
+      '把云端那份副本删掉，<b style="color:var(--txt)">本机记录不动</b>。<br>' +
+      '注意：同步还开着的话，下一次同步会把本机数据重新传上去。</div>' +
+      '<div class="btnrow"><button class="btn" data-act="close-modal">再想想</button>' +
+      '<button class="btn warn" data-act="sync-wipe-go">确认删除云端</button></div>');
+  }
+
+  function exportData() {
+    var txt = buildBackupText();
+    var kb = Math.max(0.1, txt.length / 1024).toFixed(1);
+    var s = backupSummary(S);
+    showModal('<h3>⬇️ 导出备份</h3>' +
+      '<div style="font-size:12.5px;color:var(--dim);line-height:1.8;margin-bottom:12px">' +
+      '这段文字就是你的全部数据（<b style="color:var(--yellow)">' + s.days + ' 天记录 · ' + s.sum + ' 分</b>，约 ' + kb + ' KB）。<br>' +
+      '点下面的按钮复制，发到自己的微信或存进备忘录，换设备时粘回去就行。</div>' +
+      '<textarea id="expTxt" readonly class="inp" style="width:100%;height:124px;font-size:11px;line-height:1.5;word-break:break-all;resize:none">' + esc(txt) + '</textarea>' +
+      '<div class="btnrow" style="margin-top:12px">' +
+      '<button class="btn primary" data-act="copy-backup">📋 复制备份文本</button>' +
+      '<button class="btn" data-act="download-backup">💾 存成文件</button></div>' +
+      '<button class="btn block" style="margin-top:10px" data-act="close-modal">关闭</button>' +
+      '<div style="font-size:11px;color:var(--dim);margin-top:11px;line-height:1.7">万一按钮没反应，长按上面那框全选、再复制也一样。</div>');
+  }
+
+  function downloadBackup() {
+    try {
+      var blob = new Blob([buildBackupText()], { type: 'application/json' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'checkin-island-' + dayKey() + '.json';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 3000);
+      toast('已存成文件', 'good');
+    } catch (e) { toast('这个浏览器不支持存文件，用复制吧', 'bad'); }
+  }
+
+  function copyBackup() {
+    var ta = document.getElementById('expTxt');
+    if (!ta) return;
+    var txt = ta.value || buildBackupText();
+    try { ta.focus(); ta.setSelectionRange(0, txt.length); } catch (e) {}
+    var done = false;
+    try { done = document.execCommand('copy'); } catch (e) { done = false; }
+    if (done) { toast('备份文本已复制，发给自己吧', 'good'); return; }
+    copyPlain(txt, '备份文本已复制，发给自己吧');
+  }
+
   function importData() {
-    var f = document.getElementById('fileInput');
-    f.value = '';
+    _pendingBackup = null;
+    var s = backupSummary(S);
+    showModal('<h3>⬆️ 导入备份</h3>' +
+      '<div style="font-size:12.5px;color:var(--dim);line-height:1.8;margin-bottom:12px">' +
+      '把之前导出的那段备份文本粘贴到下面。这台设备现有 <b style="color:var(--yellow)">' + s.days + ' 天记录 · ' + s.sum + ' 分</b>，下一步可以选合并或覆盖。</div>' +
+      '<textarea id="impTxt" class="inp" placeholder="把备份文本粘贴到这里…" style="width:100%;height:124px;font-size:11px;line-height:1.5;word-break:break-all;resize:none">' + esc(_lastPaste) + '</textarea>' +
+      '<div class="btnrow" style="margin-top:12px">' +
+      '<button class="btn primary" data-act="import-parse">下一步</button>' +
+      '<button class="btn" data-act="import-file">📁 选文件</button></div>' +
+      '<button class="btn block" style="margin-top:10px" data-act="close-modal">取消</button>');
+  }
+
+  function pickBackupFile(cb) {
+    var f = document.createElement('input');
+    f.type = 'file';
+    f.accept = 'application/json,.json,.txt,text/plain';
+    f.style.display = 'none';
+    document.body.appendChild(f);
     f.onchange = function () {
       var file = f.files && f.files[0];
-      if (!file) return;
-      var reader = new FileReader();
-      reader.onload = function () {
-        try {
-          var obj = JSON.parse(String(reader.result));
-          if (!obj || typeof obj !== 'object' || !obj.logs) throw new Error('格式不对');
-          localStorage.setItem(KEY, JSON.stringify(obj));
-          load();
-          render();
-          toast('导入成功，数据已恢复', 'good');
-        } catch (e) { toast('导入失败：文件格式不正确', 'bad'); }
-      };
-      reader.readAsText(file);
+      if (!file) { f.remove(); return; }
+      var r = new FileReader();
+      r.onload = function () { cb(String(r.result || '')); f.remove(); };
+      r.onerror = function () { toast('文件读不出来', 'bad'); f.remove(); };
+      r.readAsText(file);
     };
     f.click();
   }
+
+  // 容错解析：整段直接贴、只贴了正文、前后带说明文字，都能认出来
+  function parseBackup(txt) {
+    var s = String(txt || '').trim();
+    if (!s) return { err: '还没粘贴内容' };
+    var i = s.indexOf('{'), j = s.lastIndexOf('}');
+    if (i < 0 || j <= i) return { err: '这段文字里没找到备份数据' };
+    var obj;
+    try { obj = JSON.parse(s.slice(i, j + 1)); }
+    catch (e) { return { err: '内容不完整，可能复制时漏了一段' }; }
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return { err: '这不是打卡岛的备份' };
+    if (!obj.logs || typeof obj.logs !== 'object') return { err: '这不是打卡岛的备份' };
+    var bak = normalizeBackup(obj);
+    if (!bak.items.length && !Object.keys(bak.logs).length) return { err: '备份里没有任何打卡记录' };
+    return { ok: bak };
+  }
+
+  function importConfirm(bak) {
+    _pendingBackup = bak;
+    var cur = backupSummary(S), nw = backupSummary(bak), mg = backupSummary(mergeState(S, bak));
+    function row(label, s, hi) {
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06)">' +
+        '<span style="color:var(--dim);font-size:12.5px">' + label + '</span>' +
+        '<span style="font-size:12.5px' + (hi ? ';color:var(--yellow);font-weight:500' : '') + '">' + s.days + ' 天 · ' + s.sum + ' 分</span></div>';
+    }
+    showModal('<h3>✅ 备份读取成功</h3>' +
+      '<div style="margin-bottom:14px">' + row('当前这台设备', cur) + row('这份备份里', nw) + row('合并后的结果', mg, true) + '</div>' +
+      '<div style="font-size:12px;color:var(--dim);line-height:1.85;margin-bottom:14px">' +
+      '<b style="color:var(--txt)">合并</b>：两边的记录都留下，重复的那一条只算一次 —— 推荐，最不容易丢。<br>' +
+      '<b style="color:var(--txt)">覆盖</b>：只留备份里的，这台设备现有的会被换掉。</div>' +
+      '<div class="btnrow"><button class="btn" data-act="import-overwrite">覆盖</button>' +
+      '<button class="btn primary" data-act="import-merge">合并导入</button></div>' +
+      '<button class="btn block" style="margin-top:10px" data-act="import-back">返回上一步</button>');
+  }
+
+  function doImport(mode) {
+    if (!_pendingBackup) { toast('备份已失效，请重新粘贴', 'bad'); return; }
+    var next = (mode === 'merge') ? mergeState(S, _pendingBackup) : _pendingBackup;
+    try { localStorage.setItem(KEY, JSON.stringify(next)); }
+    catch (e) { toast('写入失败，本机存储可能已满', 'bad'); return; }
+    _pendingBackup = null;
+    load(); render(); closeModal();
+    var nw = backupSummary(S);
+    toast(mode === 'merge' ? ('合并完成，共 ' + nw.days + ' 天记录') : '导入完成，数据已替换', 'good');
+  }
   function resetAll() {
     showModal('<h3>⚠️ 清空全部数据</h3>' +
-      '<div style="font-size:13px;color:var(--dim);line-height:1.8;margin-bottom:16px">会删除所有打卡记录、积分和成就，且不可恢复。建议先导出备份。</div>' +
+      '<div style="font-size:13px;color:var(--dim);line-height:1.8;margin-bottom:16px">会删除所有打卡记录、积分和成就，且不可恢复。建议先导出备份。' +
+      (syncOn() ? '<br><br><b style="color:#fca5a5">注意：你开着同步，云端那份副本还在</b> —— 下次同步时它会被合并回来。真要彻底清空，请先「删除云端数据」或「断开同步」。' : '') +
+      '</div>' +
       '<div class="btnrow"><button class="btn" data-act="close-modal">再想想</button>' +
       '<button class="btn warn" data-act="reset-confirm">确认清空</button></div>');
   }
@@ -1803,7 +2448,29 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:19px;heigh
       return;
     }
     if (act === 'export') { exportData(); return; }
+    if (act === 'copy-backup') { copyBackup(); return; }
+    if (act === 'download-backup') { downloadBackup(); return; }
     if (act === 'import') { importData(); return; }
+    if (act === 'import-file') {
+      pickBackupFile(function (txt) {
+        _lastPaste = txt;
+        var res = parseBackup(txt);
+        if (res.err) { toast(res.err, 'bad'); return; }
+        importConfirm(res.ok);
+      });
+      return;
+    }
+    if (act === 'import-parse') {
+      var impEl = document.getElementById('impTxt');
+      _lastPaste = impEl ? impEl.value : '';
+      var impRes = parseBackup(_lastPaste);
+      if (impRes.err) { toast(impRes.err, 'bad'); return; }
+      importConfirm(impRes.ok);
+      return;
+    }
+    if (act === 'import-merge') { doImport('merge'); return; }
+    if (act === 'import-overwrite') { doImport('overwrite'); return; }
+    if (act === 'import-back') { importData(); return; }
     if (act === 'reset') { resetAll(); return; }
     if (act === 'reset-confirm') {
       localStorage.removeItem(KEY);
@@ -1811,11 +2478,49 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:19px;heigh
       toast('已清空，一切从头开始 💪');
       return;
     }
+    if (act === 'makeup') { showMakeup(el.getAttribute('data-k') || ''); return; }
+    if (act === 'mk-item') {
+      var mkId = el.getAttribute('data-id');
+      if (_mkSel[mkId]) { delete _mkSel[mkId]; el.classList.remove('sel'); }
+      else { _mkSel[mkId] = 1; el.classList.add('sel'); }
+      mkBtnRefresh();
+      return;
+    }
+    if (act === 'mk-go') { makeupGo(el.getAttribute('data-k') || ''); return; }
     if (act === 'demo') { demoData(); return; }
     if (act === 'demo-confirm') {
       closeModal();
       S.logs = {}; S.bonus = []; S.chests = {}; S.achs = [];
       doDemo();
+      return;
+    }
+    if (act === 'sync-create') { syncCreate(); return; }
+    if (act === 'sync-join') { syncJoin(); return; }
+    if (act === 'sync-join-go') { syncJoinGo(); return; }
+    if (act === 'sync-now') { syncNow({ silent: false }); return; }
+    if (act === 'sync-show') { syncShowKeyCard(); return; }
+    if (act === 'sync-copy') {
+      var sk = syncKey();
+      if (!sk) { toast('还没有同步码', 'bad'); return; }
+      copyPlain(sk, '同步码已复制，去另一台设备粘贴吧');
+      return;
+    }
+    if (act === 'sync-off') { syncOff(); return; }
+    if (act === 'sync-off-go') {
+      syncKeySet('');
+      closeModal(); render();
+      toast('已断开同步，本机记录保留');
+      return;
+    }
+    if (act === 'sync-wipe') { syncWipe(); return; }
+    if (act === 'sync-wipe-go') {
+      closeModal();
+      if (!syncOn()) { toast('还没连接云端', 'bad'); return; }
+      syncApi('delete').then(function () {
+        toast('云端副本已删除', 'good');
+      }, function (e) {
+        toast('删除失败：' + ((e && e.message) || '未知原因'), 'bad');
+      });
       return;
     }
   });
@@ -1866,6 +2571,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:19px;heigh
   load();
   render();
   checkAch('silent');
+  syncBoot();   // 开了同步就后台拉一次（失败也不打扰）
 
   // 首次访问提醒
   if (totals().count === 0) {
